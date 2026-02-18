@@ -29,9 +29,12 @@ class ConfigManager:
     def reload(self) -> None:
         """从磁盘重新加载配置。"""
         with self._lock:
-            # 允许配置文件不存在，因为支持通过环境变量配置
-            if not self._config_path.exists():
-                print(f"Warning: 配置文件不存在: {self._config_path}，将仅依赖环境变量配置。")
+            # 使用 is_file()。如果宿主机不存在该文件，Docker 可能会创建一个同名的文件夹，导致 exists() 为 True 但无法作为配置文件读取。
+            if not self._config_path.is_file():
+                if self._config_path.exists():
+                    print(f"Warning: {self._config_path} 是一个目录而不是文件，将跳过读取。")
+                else:
+                    print(f"info: 配置文件不存在: {self._config_path}，将仅依赖环境变量配置。")
                 return
                 
             read_files = self._parser.read(self._config_path, encoding="utf-8")

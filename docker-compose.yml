@@ -7,12 +7,12 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Mount configuration file
-      - ./config.ini:/app/config.ini
+      # 如果使用环境变量，请直接注释掉下面的config.ini挂载，并在环境变量中覆盖相应配置
+      # - ./config.ini:/app/config.ini
       # Mount database for persistence
       - ./database.db:/app/database.db
       # Mount follower list for persistence
-      - ./follower.txt:/app/follower.txt
+      # - ./follower.txt:/app/follower.txt
     environment:
       # Set timezone
       - TZ=Asia/Shanghai
