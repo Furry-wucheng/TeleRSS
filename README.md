@@ -1,4 +1,4 @@
-# AutoNotice
+# TeleRSS
 
 AutoNotice 是一个自动化的通知服务，旨在通过 RSS 或直接请求的方式监控信息源，并推送到 Telegram。
 
@@ -95,7 +95,49 @@ uv run main.py
   - [ ] 实现自动从源站爬取关注列表并更新数据库。
   - [ ] 提供管理 API 以动态添加/删除关注者。
 
-## 📂 项目结构
+## � CI/CD 与自动化部署
+
+本项目支持通过 GitHub Actions 自动构建 Docker 镜像并推送至 GHCR (GitHub Container Registry)。
+
+### 1. 部署流程
+
+1. **提交代码**: 当您将代码推送到 `main` 分支时，GitHub Actions 会自动触发构建。
+2. **构建镜像**: 系统会自动构建最新的 Docker 镜像 `ghcr.io/您的用户名/autonotice:latest`。
+3. **服务器更新**:
+   在您的服务器上，使用以下命令更新并运行最新版本：
+
+   **前置条件**: 首次拉取镜像前，需要登录 GitHub Container Registry (只需一次):
+
+   ```bash
+   # 使用您的 GitHub 用户名和 Personal Access Token (PAT)
+   echo $CR_PAT | docker login ghcr.io -u USERNAME --password-stdin
+   ```
+
+   **更新与启动**:
+
+   ```bash
+   # 1. 拉取最新镜像
+   docker-compose pull
+
+   # 2. 重启服务 (旧容器被替换，但数据因挂载而保留)
+   docker-compose up -d
+   ```
+
+### 2. 修改 `docker-compose.yml` (重要)
+
+为了使用 GitHub 构建的镜像，您需要修改 `docker-compose.yml` 中的 `image` 字段：
+
+```yaml
+services:
+  autonotice:
+    # 替换为您的 GitHub 用户名和小写的仓库名
+    image: ghcr.io/username/autonotice:latest
+    # build: .  <-- 开发时用 build，部署时注释掉这行
+    container_name: autonotice
+    # ... 其他配置保持不变 ...
+```
+
+## 🀽� 项目结构
 
 ```
 .
@@ -111,6 +153,53 @@ uv run main.py
 ├── scheduler/          # 调度模块
 ├── strategy/           # 策略模块
 └── utils/              # 工具模块
+```
+
+## 🔄 CI/CD 与自动部署
+
+本项目使用 GitHub Actions 自动构建 Docker 镜像并发布到 **GitHub Container Registry (GHCR)**。
+
+### 1. 自动构建流程
+
+每当推送到 `main` 分支时，GitHub Actions 会自动触发构建：
+
+1. **构建**: 使用 `Dockerfile` 构建最新镜像。
+2. **发布**: 将镜像推送到 `ghcr.io/<你的用户名>/autonotice:latest`。
+
+### 2. 如何使用预构建镜像
+
+您可以直接使用构建好的镜像，无需在服务器上自行 build。
+
+**修改 `docker-compose.yml`**:
+
+```yaml
+services:
+  autonotice:
+    # 改为从 GitHub 拉取镜像
+    image: ghcr.io/YOUR_USERNAME/autonotice:latest
+    # build: .  <-- 注释掉这行
+    container_name: autonotice
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./config.ini:/app/config.ini
+      - ./database.db:/app/database.db
+      - ./follower.txt:/app/follower.txt
+```
+
+*注意：将 `YOUR_USERNAME` 替换为您的 GitHub 用户名 (全小写)。*
+
+### 3. 服务器更新步骤
+
+当代码更新后，在服务器执行以下命令即可平滑升级：
+
+```bash
+# 1. 拉取最新镜像
+docker-compose pull
+
+# 2. 重启容器 (旧容器销毁，新容器挂载原有数据启动)
+docker-compose up -d
 ```
 
 ## 🤝 贡献
