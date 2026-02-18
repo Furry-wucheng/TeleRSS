@@ -1,0 +1,21 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.git
+.gitignore
+.DS_Store
+.idea/
+.vscode/
+
+# Ignore sensitive or local data files
+database.db
+follower.txt
+# Ignore local config (use config.example.ini or env vars instead)
+config.ini
+
+

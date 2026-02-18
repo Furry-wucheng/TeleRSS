@@ -1,0 +1,13 @@
+[project]
+name = "autonotice"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.13"
+dependencies = [
+    "apscheduler>=3.11.2",
+    "dataclasses>=0.8",
+    "fastapi>=0.129.0",
+    "httpx>=0.28.1",
+    "sqlmodel>=0.0.33",
+    "uvicorn>=0.40.0",
+]
