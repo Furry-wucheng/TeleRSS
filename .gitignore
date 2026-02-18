@@ -25,7 +25,3 @@ follower.txt
 # OS
 .DS_Store
 Thumbs.db
-
-# uv
-uv.log
-uv.lock
