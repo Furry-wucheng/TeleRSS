@@ -29,9 +29,15 @@ class ConfigManager:
     def reload(self) -> None:
         """从磁盘重新加载配置。"""
         with self._lock:
+            # 允许配置文件不存在，因为支持通过环境变量配置
+            if not self._config_path.exists():
+                print(f"Warning: 配置文件不存在: {self._config_path}，将仅依赖环境变量配置。")
+                return
+                
             read_files = self._parser.read(self._config_path, encoding="utf-8")
             if not read_files:
-                raise ConfigError(f"未能读取配置文件: {self._config_path}")
+                # 只有当路径存在但读取失败（比如权限问题）时才抛出异常
+                raise ConfigError(f"未能正确解析配置文件: {self._config_path}")
 
     def get(self, section: str, option: str, *, fallback: Optional[T] = None, cast: Optional[Callable[[str], T]] = None, required: bool = False) -> Optional[T | str]:
         """返回配置值，支持可选的类型转换和验证。"""

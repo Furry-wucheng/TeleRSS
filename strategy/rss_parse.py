@@ -12,15 +12,12 @@ class RssStrategy:
     RSS策略类，负责从RSS源获取数据
     """
     def __init__(self):
-        base_type = get_config("base", "type")
+        base_type = get_config("base", "type", fallback="rss")
         if base_type != "rss":
              # 如果配置不是rss，理论上不应该初始化这个策略，或者这只是个备用
              pass
 
-        self.base_url = get_config("rss", "rss_base_url")
-        if not self.base_url:
-            raise ValueError("RSS Base URL match be set in config [rss] rss_base_url")
-
+        self.base_url = get_config("rss", "rss_base_url", required=True)
         self.client = RssClient(self.base_url)
 
     async def get_new_media(self, user_id: str) -> List[TwitterContent]:
