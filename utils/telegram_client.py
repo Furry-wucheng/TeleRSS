@@ -1,78 +1,47 @@
 from __future__ import annotations
 
-import asyncio
-from typing import Any, Sequence
-from telegram import Bot, InputMediaPhoto, InputMediaVideo
+from telegram import Bot
 
 from utils.config_manager import ConfigError, get_config
 
+_bot_instance: Bot | None = None
+_target_chat_id: str | int | None = None
 
-class TelegramClient:
+
+def get_telegram_bot() -> Bot:
     """
-    Telegram Bot API 客户端 (基于 python-telegram-bot)
+    Returns a singleton python-telegram-bot Bot instance.
     """
-    _bot: Bot
-
-    def __init__(self, token: str, *, timeout: float = 10.0) -> None:
+    global _bot_instance
+    if _bot_instance is None:
+        token = get_config("telegram", "bot_token", required=True)
         if not token:
-            raise ValueError("Telegram token 不能为空")
-        self._bot = Bot(token=token)
-
-    @classmethod
-    def create_from_config(cls, section: str = "telegram", option: str = "bot_token", **kwargs: Any) -> "TelegramClient":
-        token = get_config(section, option, required=True)
-        if not token:
-            raise ConfigError(f"[{section}] {option} 未配置")
-        return cls(token, **kwargs)
-
-    async def close(self) -> None:
-        # python-telegram-bot manages its own connection pool usually,
-        # but if we need to explicitly close, we can look into it.
-        pass
-
-    async def __aenter__(self) -> "TelegramClient":
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        await self.close()
-
-    async def send_message(self, chat_id: int | str, message: str, *, parse_mode: str = "HTML", disable_preview: bool = False) -> Any:
-        return await self._bot.send_message(
-            chat_id=chat_id,
-            text=message,
-            parse_mode=parse_mode,
-            disable_web_page_preview=disable_preview
-        )
-
-    async def send_photo(self, chat_id: int | str, photo: str | bytes, caption: str | None = None, *, parse_mode: str = "HTML") -> Any:
-        return await self._bot.send_photo(
-            chat_id=chat_id,
-            photo=photo,
-            caption=caption,
-            parse_mode=parse_mode
-        )
-
-    async def send_video(self, chat_id: int | str, video: str | bytes, caption: str | None = None, *, parse_mode: str = "HTML", supports_streaming: bool = True) -> Any:
-        return await self._bot.send_video(
-            chat_id=chat_id,
-            video=video,
-            caption=caption,
-            parse_mode=parse_mode,
-            supports_streaming=supports_streaming
-        )
-
-    async def send_media_group(self, chat_id: int | str, media_list: Sequence[InputMediaPhoto | InputMediaVideo]) -> Any:
-        return await self._bot.send_media_group(
-            chat_id=chat_id,
-            media=media_list
-        )
+            raise ConfigError("[telegram] bot_token 未配置")
+        _bot_instance = Bot(token=token)
+    return _bot_instance
 
 
+def get_target_chat_id() -> str | int:
+    """
+    Returns the singleton target chat ID from config.
+    """
+    global _target_chat_id
+    if _target_chat_id is None:
+        _target_chat_id = get_config("telegram", "target_chat_id")
+    return _target_chat_id
 
-async def test():
-    client = TelegramClient.create_from_config()
-    response = await client.send_video("856909568", "https://video.twimg.com/amplify_video/2023038552037326849/vid/avc1/1280x720/6nA4FTH3NrX-Dxtp.mp4?tag=14",)
-    print(response)
 
-if __name__ == '__main__':
-    asyncio.run(test())
+async def send_error_notification(bot: Bot, message: str):
+    """
+    发送错误通知给管理员
+    """
+    try:
+        target_chat_id = get_target_chat_id()
+        if target_chat_id:
+            await bot.send_message(
+                chat_id=target_chat_id,
+                text=f"⚠️ <b>系统错误警告</b>\n{message}",
+                parse_mode="HTML",
+            )
+    except Exception as e:
+        print(f"Failed to send error notification: {e}")

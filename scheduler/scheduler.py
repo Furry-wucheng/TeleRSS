@@ -15,7 +15,8 @@ from strategy.strategy_factory import get_strategy
 from utils.date_handler import DateHandler
 from notice.message_sender import send_twitter_content
 from utils.config_manager import get_config
-from utils.telegram_client import TelegramClient
+from utils.telegram_client import get_telegram_bot, send_error_notification, get_target_chat_id
+from telegram import Bot
 import asyncio
 
 scheduler = AsyncIOScheduler()
@@ -160,11 +161,11 @@ async def process_group_users(user_ids: List[str], group_index: int):
     """
     print(f"Starting Group {group_index} processing ({len(user_ids)} users).")
 
-    # 初始化 Telegram Client
+    # 初始化 Telegram Bot
     try:
-        tg_client = TelegramClient.create_from_config()
+        bot = get_telegram_bot()
     except Exception as e:
-        print(f"Group {group_index}: Failed to init Telegram Client: {e}")
+        print(f"Group {group_index}: Failed to init Telegram Bot: {e}")
         return
 
     # 初始化策略
@@ -174,58 +175,48 @@ async def process_group_users(user_ids: List[str], group_index: int):
         print(f"Group {group_index}: Failed to init Strategy: {e}")
         return
 
-    async with tg_client:
-        for idx, user_id in enumerate(user_ids):
-            print(f"Group {group_index} - Processing {idx + 1}/{len(user_ids)}: {user_id}")
+    # python-telegram-bot Bot usually doesn't need context manager for simple usage unless implementing extensive connection pooling managing.
+    # It manages connection pool internally. We can just use it.
 
-            # 处理单个用户
-            try:
-                # 每次重新获取 session，避免长事务
-                with get_session() as session:
-                    follower = session.get(FollowerTable, user_id)
-                    if follower and follower.category != "disable":
-                        # 检查最近发送时间，如果1小时内已发送过则跳过
-                        if follower.latest_send_datetime and datetime.now() - follower.latest_send_datetime < timedelta(hours=1):
-                            print(f"User {user_id} skipped (less than 1 hour since last check/send).")
-                            continue
+    for idx, user_id in enumerate(user_ids):
+        print(f"Group {group_index} - Processing {idx + 1}/{len(user_ids)}: {user_id}")
 
-                        await process_follower(follower, session, tg_client, strategy)
+        # 处理单个用户
+        try:
+            # 每次重新获取 session，避免长事务
+            with get_session() as session:
+                follower = session.get(FollowerTable, user_id)
+                if follower and follower.category != "disable":
+                    # 检查最近发送时间，如果1小时内已发送过则跳过
+                    if follower.latest_send_datetime and datetime.now() - follower.latest_send_datetime < timedelta(hours=1):
+                        print(f"User {user_id} skipped (less than 1 hour since last check/send).")
+                        continue
 
-                        # 更新检查时间（即使没有新内容发送，也更新检查时间，避免频繁请求）
-                        # 注意：如果只是check update而没有send，是否更新latest_send_datetime?
-                        # 用户的意图是“重启测试时跳过”，所以应该是指“上次处理过的时间”。
-                        # 为了稳妥，我们在 process_follower 内部成功发送后更新 latest_send_datetime。
-                        # 如果没有发送，那说明没有新推文，是否应该更新？
-                        # 如果不更新，下次重启还会再查。RSS请求开销不大。
-                        # 如果更新导致错过，那就不好了。
-                        # 暂时只在 process_follower 发送成功后更新 latest_send_datetime。
-                    else:
-                        print(f"User {user_id} skipped (not found or disabled).")
-            except Exception as e:
-                print(f"Error processing user {user_id} in group {group_index}: {e}")
-                await send_error_notification(tg_client, f"Group {group_index} Error User {user_id}: {e}")
+                    await process_follower(follower, session, bot, strategy)
 
-            # 组内请求间隔 1 分钟 (最后一个用户后不需要等待)
-            if idx < len(user_ids) - 1:
-                print(f"Group {group_index}: Waiting 60s before next user...")
-                await asyncio.sleep(60)
+                    # 更新检查时间（即使没有新内容发送，也更新检查时间，避免频繁请求）
+                    # 注意：如果只是check update而没有send，是否更新latest_send_datetime?
+                    # 用户的意图是“重启测试时跳过”，所以应该是指“上次处理过的时间”。
+                    # 为了稳妥，我们在 process_follower 内部成功发送后更新 latest_send_datetime。
+                    # 如果没有发送，那说明没有新推文，是否应该更新？
+                    # 如果不更新，下次重启还会再查。RSS请求开销不大。
+                    # 如果更新导致错过，那就不好了。
+                    # 暂时只在 process_follower 发送成功后更新 latest_send_datetime。
+                else:
+                    print(f"User {user_id} skipped (not found or disabled).")
+        except Exception as e:
+            print(f"Error processing user {user_id} in group {group_index}: {e}")
+            await send_error_notification(bot, f"Group {group_index} Error User {user_id}: {e}")
+
+        # 组内请求间隔 1 分钟 (最后一个用户后不需要等待)
+        if idx < len(user_ids) - 1:
+            print(f"Group {group_index}: Waiting 60s before next user...")
+            await asyncio.sleep(60)
 
     print(f"Group {group_index} processing finished.")
 
 
-async def send_error_notification(client: TelegramClient, message: str):
-    """
-    发送错误通知给管理员
-    """
-    try:
-        target_chat_id = get_config("telegram", "target_chat_id")
-        if target_chat_id:
-            await client.send_message(target_chat_id, f"⚠️ <b>系统错误警告</b>\n{message}")
-    except Exception as e:
-        print(f"Failed to send error notification: {e}")
-
-
-async def process_follower(follower: FollowerTable, session, tg_client: TelegramClient, strategy: RssStrategy):
+async def process_follower(follower: FollowerTable, session, bot: Bot, strategy: RssStrategy):
     print(f"Checking updates for user: {follower.user_id}")
 
     contents = []
@@ -241,7 +232,7 @@ async def process_follower(follower: FollowerTable, session, tg_client: Telegram
             else:
                 print(f"Fetch failed for {follower.user_id} after {retry_count} attempts: {e}")
                 # Optional: Send error notification after all retries fail, or just log it to avoid spamming
-                await send_error_notification(tg_client, f"Fetch failed for {follower.user_id}: {e}")
+                await send_error_notification(bot, f"Fetch failed for {follower.user_id}: {e}")
                 return
 
     if not contents:
@@ -280,15 +271,15 @@ async def process_follower(follower: FollowerTable, session, tg_client: Telegram
     # 逐个处理新帖子
     for content, dt in new_posts:
         try:
-            # 获取目标 Webhook
-            target_chat_id = get_config("telegram", "target_chat_id")
+            # 获取目标 Chat ID
+            target_chat_id = get_target_chat_id()
 
             # 格式化时间
             post_time_str = DateHandler.format_notify(dt)
 
             # 发送通知 (使用新工具函数)
             await send_twitter_content(
-                tg_client,
+                bot,
                 content,
                 target_chat_id,
                 category=follower.category,
@@ -321,7 +312,7 @@ async def process_follower(follower: FollowerTable, session, tg_client: Telegram
 
         except Exception as e:
             print(f"Failed to send notification for {follower.user_id}: {e}")
-            await send_error_notification(tg_client, f"发送通知失败 [{follower.user_id}]\n{content.link}\n错误: {e}")
+            await send_error_notification(bot, f"发送通知失败 [{follower.user_id}]\n{content.link}\n错误: {e}")
             # 继续处理下一个帖子？还是中断？
             # 这里的策略是：单条失败不影响该用户的下一条（如果有），或者直接中断该用户的此次更新
             # 简单起见，记录错误并继续尝试（可能导致乱序如果后续成功了但这条没成功，
