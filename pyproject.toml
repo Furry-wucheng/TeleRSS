@@ -8,6 +8,7 @@ dependencies = [
     "dataclasses>=0.8",
     "fastapi>=0.129.0",
     "httpx>=0.28.1",
+    "python-telegram-bot>=22.6",
     "sqlmodel>=0.0.33",
     "uvicorn>=0.40.0",
 ]

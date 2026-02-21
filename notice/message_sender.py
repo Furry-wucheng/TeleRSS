@@ -4,7 +4,8 @@ from typing import List
 
 from strategy.strategy_factory import get_strategy
 from utils.config_manager import get_config
-from utils.telegram_client import TelegramClient, TelegramMedia
+from utils.telegram_client import TelegramClient
+from telegram import InputMediaPhoto, InputMediaVideo
 from strategy.context import TwitterContent
 
 async def send_twitter_content(client: TelegramClient, content: TwitterContent, target_chat_id: str, category: str = "Uncategorized", post_time: str = ""):
@@ -31,25 +32,28 @@ async def send_twitter_content(client: TelegramClient, content: TwitterContent, 
         return
 
     # 构造媒体对象列表
-    tg_media_list: List[TelegramMedia] = []
+    input_media_list = []
 
     for i, url in enumerate(media_list):
         # 非常粗糙的类型判断，实际应检查文件扩展名或Content-Type
         is_video = ".mp4" in url or "video" in url
 
         # 只有第一个媒体带这个caption
+        # 且如果是媒体组，caption也只加一次。
+        # PTB InputMedia supports caption on individual items.
+        # But for sendMediaGroup, usually only the caption of the first item (or others) is displayed as the message caption.
         caption = msg if i == 0 else None
 
         if is_video:
-            tg_media_list.append(TelegramMedia.video(url, caption=caption))
+            input_media_list.append(InputMediaVideo(media=url, caption=caption, parse_mode="HTML"))
         else:
-            tg_media_list.append(TelegramMedia.photo(url, caption=caption))
+            input_media_list.append(InputMediaPhoto(media=url, caption=caption, parse_mode="HTML"))
 
     try:
-        if len(tg_media_list) == 1:
+        if len(input_media_list) == 1:
             # 单个媒体
-            media = tg_media_list[0]
-            if media.media_type == "video":
+            media = input_media_list[0]
+            if isinstance(media, InputMediaVideo):
                 await client.send_video(target_chat_id, media.media, caption=media.caption)
             else:
                 await client.send_photo(target_chat_id, media.media, caption=media.caption)
@@ -59,13 +63,10 @@ async def send_twitter_content(client: TelegramClient, content: TwitterContent, 
             # 如果超过10个，需要分批发送
             # 这里简单做一下切片，每10个一组
             chunk_size = 10
-            for i in range(0, len(tg_media_list), chunk_size):
-                chunk = tg_media_list[i : i + chunk_size]
-                # 注意：媒体组的 caption 只能附在第一个媒体上
-                # 分组后，如果第一组有caption，后续组通常没有，或者需要重新把链接附在某处？
-                # 这里只保留第一组的caption（上面的循环已经处理了 caption=msg if i==0）
-                # 但是如果第一组发完了，第二组就没有链接信息了。
-                # 简单起见，我们不在第二组重复发 caption，防止刷屏。
+            for i in range(0, len(input_media_list), chunk_size):
+                chunk = input_media_list[i : i + chunk_size]
+                # If splitting into chunks, the second chunk won't have the caption if we only set it on the very first item (i=0 global).
+                # That is generally desired behavior (not repeating the big text block).
                 await client.send_media_group(target_chat_id, chunk)
 
     except Exception as e:
