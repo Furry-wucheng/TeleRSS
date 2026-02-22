@@ -20,7 +20,7 @@ async def main():
                 ids.add(line)
                 tasks.append(add_new_follower(line))
             else:
-                user_id, category = line.split(" ")
+                user_id, category = line.split(" ", 1)
                 if category == "" or user_id == "":
                     raise ValueError("category 不能为空")
                 if user_id in ids:

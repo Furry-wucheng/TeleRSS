@@ -46,7 +46,7 @@ class SendHistory(SQLModel, table=True):
     """
     __tablename__ = "send_history"
 
-    id: int = Field(primary_key=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
     author: str
     content: str
     link: str

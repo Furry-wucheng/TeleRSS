@@ -47,7 +47,9 @@ def get_target_chat_id() -> str | int:
     """
     global _target_chat_id
     if _target_chat_id is None:
-        _target_chat_id = get_config("telegram", "target_chat_id")
+        _target_chat_id = get_config("telegram", "target_chat_id", required=True)
+        if not _target_chat_id:
+            raise ConfigError("[telegram] target_chat_id 未配置")
     return _target_chat_id
 
 
@@ -57,11 +59,10 @@ async def send_error_notification(bot: Bot, message: str):
     """
     try:
         target_chat_id = get_target_chat_id()
-        if target_chat_id:
-            await bot.send_message(
-                chat_id=target_chat_id,
-                text=f"⚠️ <b>系统错误警告</b>\n{message}",
-                parse_mode="HTML",
-            )
+        await bot.send_message(
+            chat_id=target_chat_id,
+            text=f"⚠️ <b>系统错误警告</b>\n{message}",
+            parse_mode="HTML",
+        )
     except Exception as e:
         logger.error(f"Failed to send error notification: {e}")

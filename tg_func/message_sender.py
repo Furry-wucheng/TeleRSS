@@ -29,7 +29,7 @@ async def send_twitter_content(bot: Bot, content: TwitterContent, target_chat_id
     media_list = content.media_list
     if not media_list:
         # 无媒体，仅发送文本
-        await bot.send_message(chat_id=target_chat_id, text=msg, parse_mode="HTML", disable_web_page_preview=False)
+        await bot.send_message(chat_id=target_chat_id, text=msg, parse_mode="HTML")
         return
 
     # 构造媒体对象列表

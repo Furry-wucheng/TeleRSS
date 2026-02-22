@@ -14,6 +14,7 @@ from strategy.rss_parse import RssStrategy
 from strategy.strategy_factory import get_strategy
 from utils.date_handler import DateHandler
 from tg_func.message_sender import send_twitter_content
+from tg_func.commands_handller import setup_commands
 from utils.config_manager import get_config
 from utils.logger import get_logger
 from utils.telegram_client import get_telegram_bot, get_telegram_application, send_error_notification, get_target_chat_id
@@ -38,6 +39,7 @@ async def lifespan(app: FastAPI):
     await tg_app.initialize()
     await tg_app.start()
     await tg_app.updater.start_polling()
+    await setup_commands(tg_app)
 
     # 启动定时任务
     scheduler.start()
@@ -127,6 +129,7 @@ async def refresh_daily_scheduler():
             group_ids = all_user_ids[start_idx:end_idx]
             scheduler.add_job(
                 process_group_users,
+                'date',
                 args=[group_ids, i],
                 id=f"makeup_job_{i}_{int(now.timestamp())}",
                 next_run_time=now

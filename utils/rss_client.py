@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel, model_validator
 import xml.etree.ElementTree as ET
@@ -16,7 +16,7 @@ class RssResponse(BaseModel):
     guid: str = ""
     isPermaLink: bool = False
     pubDate: str = ""
-    pubDatetime: datetime = None
+    pubDatetime: Optional[datetime] = None
     author: str = ""
 
     @model_validator(mode='after')
