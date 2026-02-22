@@ -5,22 +5,16 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-BOT_COMMANDS = [
-    BotCommand("add_id", "添加关注用户 <user_id> [category] [source]"),
-    BotCommand("remove_id", "删除关注用户 <user_id>"),
-    BotCommand("update_id_cate", "更新用户分类 <user_id> <category>"),
-    BotCommand("get_cate_list", "获取所有分类列表"),
-]
-
 
 async def add_new_userid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Adds a new user ID to the database.
     """
+    logger.info("Received addid command.")
     args = context.args
 
     if len(args) == 0 or len(args) > 3:
-        await update.message.reply_text("Usage: /addid <user_id> [category] [source]")
+        await update.message.reply_text("Usage: /add_id <user_id> [category] [source]")
         return
 
     user_id = args[0]
@@ -38,10 +32,11 @@ async def remove_userid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Removes a user ID from the database.
     """
+    logger.info("Received removeid command.")
     args = context.args
 
     if len(args) != 1:
-        await update.message.reply_text("Usage: /removeid <user_id>")
+        await update.message.reply_text("Usage: /remove_id <user_id>")
         return
 
     user_id = args[0]
@@ -51,10 +46,11 @@ async def update_userid_cate(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """
     Updates the category of a user ID.
     """
+    logger.info("Received updateidcate command.")
     args = context.args
 
     if len(args) != 2:
-        await update.message.reply_text("Usage: /updateidcate <user_id> <category>")
+        await update.message.reply_text("Usage: /update_id_cate <user_id> <category>")
         return
 
     user_id = args[0]
@@ -69,19 +65,23 @@ async def get_category_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"当前分类列表为：{cate_list}")
 
 
+# 新增命令只需在这里加一行，注册和菜单自动同步
+BOT_COMMANDS = [
+    (BotCommand("add_id",         "添加关注用户 <user_id> [category] [source]"), add_new_userid),
+    (BotCommand("remove_id",      "删除关注用户 <user_id>"),                     remove_userid),
+    (BotCommand("update_id_cate", "更新用户分类 <user_id> <category>"),          update_userid_cate),
+    (BotCommand("get_cate_list",  "获取所有分类列表"),                            get_category_list),
+]
+
+
 def register_handlers(application: Application):
-    """
-    Registers handlers to the application.
-    """
-    application.add_handler(CommandHandler("addid", add_new_userid))
-    application.add_handler(CommandHandler("removeid", remove_userid))
-    application.add_handler(CommandHandler("updateidcate", update_userid_cate))
-    application.add_handler(CommandHandler("getcategorylist", get_category_list))
+    for cmd, callback in BOT_COMMANDS:
+        application.add_handler(CommandHandler(cmd.command, callback))
 
 
-async def setup_commands(application: Application):
+async def setup_commands(application: Application, merge: bool = False):
     """
     通过 Telegram API 自动设置 Bot 菜单命令，无需在 BotFather 手动配置。
     """
-    await application.bot.set_my_commands(BOT_COMMANDS)
+    await application.bot.set_my_commands([cmd for cmd, _ in BOT_COMMANDS])
     logger.info("Bot commands menu has been set successfully.")

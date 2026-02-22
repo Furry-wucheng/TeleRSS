@@ -38,7 +38,12 @@ async def lifespan(app: FastAPI):
     tg_app = get_telegram_application()
     await tg_app.initialize()
     await tg_app.start()
-    await tg_app.updater.start_polling()
+    # drop_pending_updates=True：忽略离线期间堆积的旧消息
+    try:
+        await tg_app.updater.start_polling(drop_pending_updates=True)
+    except Exception as e:
+        logger.error(f"Polling 启动失败: {e}")
+        raise
     await setup_commands(tg_app)
 
     # 启动定时任务
@@ -116,13 +121,14 @@ async def refresh_daily_scheduler():
         )
         logger.info(f"Added job group_{i}: {len(group_ids)} users at {hour_trigger:02d}:00")
 
-    # 手动补跑：检查启动时是否有刚错过的组（2小时内）
+    # 手动补跑：检查启动时是否有刚错过的组（1小时内）
     now = datetime.now()
     current_hour = now.hour
 
     for i in range(num_groups):
         trigger_hour = (i * hour_interval) % 24
-        if trigger_hour <= current_hour < trigger_hour + 2:
+        if trigger_hour <= current_hour < trigger_hour + 1\
+                :
             logger.info(f"Detected missed job (Now: {now}, Trigger: {trigger_hour}:00). Executing group {i} immediately.")
             start_idx = i * group_size
             end_idx = min((i + 1) * group_size, total_count)
