@@ -4,8 +4,8 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.13"
 dependencies = [
+    "aiosqlite>=0.22.1",
     "apscheduler>=3.11.2",
-    "dataclasses>=0.8",
     "fastapi>=0.129.0",
     "httpx>=0.28.1",
     "python-telegram-bot>=22.6",

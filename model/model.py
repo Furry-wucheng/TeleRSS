@@ -1,16 +1,20 @@
 import os
+from contextlib import asynccontextmanager
+from typing import Optional, AsyncGenerator
 
-from sqlalchemy import create_engine, Column, DateTime, func
+from sqlalchemy import Column, DateTime
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlmodel import Field, SQLModel
 from datetime import datetime
-from typing import Optional
 
 sqlite_file_name = "database.db"
 # 获取项目路径
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sqlite_url = f"sqlite:///{project_root}/{sqlite_file_name}"
+sqlite_async_url = f"sqlite+aiosqlite:///{project_root}/{sqlite_file_name}"
 
-engine = create_engine(sqlite_url, echo=True)
+# 异步引擎：用于所有业务查询/写入
+async_engine = create_async_engine(sqlite_async_url, echo=True)
+AsyncSessionFactory = async_sessionmaker(async_engine, expire_on_commit=False)
 
 
 class FollowerTable(SQLModel, table=True):
@@ -52,15 +56,20 @@ class SendHistory(SQLModel, table=True):
     send_time: datetime = Field(default_factory=datetime.now)
 
 
-def create_db_and_table():
-    SQLModel.metadata.create_all(engine)
+@asynccontextmanager
+async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
+    """
+    异步 Session 上下文管理器。
+    用法：async with get_async_session() as session: ...
+    异常时自动回滚，结束后自动关闭。
+    """
+    async with AsyncSessionFactory() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
 
 
-def get_session():
-    from sqlmodel import Session
-    return Session(engine)
 
-
-if __name__ == '__main__':
-    one = get_session().exec(func.count(FollowerTable.user_id)).scalar()
-    print(one)

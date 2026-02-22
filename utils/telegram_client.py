@@ -1,24 +1,41 @@
 from __future__ import annotations
 
 from telegram import Bot
+from telegram.ext import Application
 
 from utils.config_manager import ConfigError, get_config
 
-_bot_instance: Bot | None = None
+_application_instance: Application | None = None
 _target_chat_id: str | int | None = None
 
 
 def get_telegram_bot() -> Bot:
     """
-    Returns a singleton python-telegram-bot Bot instance.
+    Returns a singleton python-telegram-bot Bot instance from the Application.
     """
-    global _bot_instance
-    if _bot_instance is None:
+    return get_telegram_application().bot
+
+
+def get_telegram_application() -> Application:
+    """
+    Returns a singleton python-telegram-bot Application instance.
+    """
+    global _application_instance
+    if _application_instance is None:
         token = get_config("telegram", "bot_token", required=True)
         if not token:
             raise ConfigError("[telegram] bot_token 未配置")
-        _bot_instance = Bot(token=token)
-    return _bot_instance
+
+        # Build the application with the token directly.
+        # This creates the Bot and the Updater.
+        _application_instance = Application.builder().token(token).build()
+
+        # 注册 handlers
+        # 为了避免循环引用，在这里导入 handlers
+        from tg_func.commands_handller import register_handlers
+        register_handlers(_application_instance)
+
+    return _application_instance
 
 
 def get_target_chat_id() -> str | int:
