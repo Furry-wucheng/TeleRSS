@@ -47,6 +47,12 @@ async def delete_follower(user_id: str):
         if follower:
             await session.delete(follower)
 
+async def select_follower_by_category(category: str) -> List[FollowerTable]:
+    """根据分类获取用户"""
+    async with get_async_session() as session:
+        result = await session.execute(select(FollowerTable).where(FollowerTable.category == category))
+        return result.scalars().all()
+
 
 # ---------------------------------------------------------------------------
 # Scheduler 专用查询/写入

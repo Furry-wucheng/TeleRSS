@@ -38,9 +38,9 @@ async def lifespan(app: FastAPI):
     tg_app = get_telegram_application()
     await tg_app.initialize()
     await tg_app.start()
-    # drop_pending_updates=True：忽略离线期间堆积的旧消息
+    # timeout 缩短为 10s，避免长轮询被代理超时掐断
     try:
-        await tg_app.updater.start_polling(drop_pending_updates=True)
+        await tg_app.updater.start_polling(drop_pending_updates=True, timeout=10, poll_interval=2)
     except Exception as e:
         logger.error(f"Polling 启动失败: {e}")
         raise
