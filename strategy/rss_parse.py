@@ -6,6 +6,9 @@ from typing import List
 from utils.rss_client import RssClient
 from strategy.context import TwitterContent
 from utils.config_manager import get_config
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 class RssStrategy:
     """
@@ -63,9 +66,9 @@ async def test():
     try:
         strategy = RssStrategy()
         result = await strategy.get_new_media("Panda_inn1")
-        print(result[:3])
+        logger.debug(result[:3])
     except Exception as e:
-        print(f"Test failed: {e}")
+        logger.error(f"Test failed: {e}")
 
 if __name__ == '__main__':
     asyncio.run(test())

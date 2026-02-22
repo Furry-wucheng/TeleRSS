@@ -1,5 +1,8 @@
 from strategy.rss_parse import RssStrategy
 from utils.config_manager import get_config
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 _instance = None
 
@@ -16,7 +19,7 @@ def get_strategy():
     else:
         # 如果有其他策略（如直接API），在这里扩展
         # 目前默认回退到 RSS 或抛出错误
-        print(f"Unknown strategy type: {strategy_type}, falling back to RSS.")
+        logger.warning(f"Unknown strategy type: {strategy_type}, falling back to RSS.")
         _instance = RssStrategy()
 
     return _instance

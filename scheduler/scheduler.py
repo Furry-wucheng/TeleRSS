@@ -15,10 +15,12 @@ from strategy.strategy_factory import get_strategy
 from utils.date_handler import DateHandler
 from tg_func.message_sender import send_twitter_content
 from utils.config_manager import get_config
+from utils.logger import get_logger
 from utils.telegram_client import get_telegram_bot, get_telegram_application, send_error_notification, get_target_chat_id
 from telegram import Bot
 import asyncio
 
+logger = get_logger(__name__)
 scheduler = AsyncIOScheduler()
 
 
@@ -67,16 +69,16 @@ async def refresh_daily_scheduler():
     2. 将用户分为 N 组 (每组间隔若干小时)
     3. 为每一组创建一个定时任务
     """
-    print("Refreshing daily scheduler...")
+    logger.info("Refreshing daily scheduler...")
     try:
         all_user_ids = await follower_model.get_active_user_ids()
     except Exception as e:
-        print(f"Failed to refresh scheduler: {e}")
+        logger.error(f"Failed to refresh scheduler: {e}")
         return
 
     total_count = len(all_user_ids)
     if total_count == 0:
-        print("No active users found.")
+        logger.warning("No active users found.")
         return
 
     num_groups = get_config("base", "num_groups", fallback=6, cast=int)
@@ -89,7 +91,7 @@ async def refresh_daily_scheduler():
         if job.id.startswith("group_job_"):
             scheduler.remove_job(job.id)
 
-    print(f"Scheduling {total_count} users into {num_groups} groups (approx {group_size} per group).")
+    logger.info(f"Scheduling {total_count} users into {num_groups} groups (approx {group_size} per group).")
 
     for i in range(num_groups):
         start_idx = i * group_size
@@ -110,7 +112,7 @@ async def refresh_daily_scheduler():
             id=f"group_job_{i}",
             misfire_grace_time=misfire_grace
         )
-        print(f"Added job group_{i}: {len(group_ids)} users at {hour_trigger:02d}:00")
+        logger.info(f"Added job group_{i}: {len(group_ids)} users at {hour_trigger:02d}:00")
 
     # 手动补跑：检查启动时是否有刚错过的组（2小时内）
     now = datetime.now()
@@ -119,7 +121,7 @@ async def refresh_daily_scheduler():
     for i in range(num_groups):
         trigger_hour = (i * hour_interval) % 24
         if trigger_hour <= current_hour < trigger_hour + 2:
-            print(f"Detected missed job (Now: {now}, Trigger: {trigger_hour}:00). Executing group {i} immediately.")
+            logger.info(f"Detected missed job (Now: {now}, Trigger: {trigger_hour}:00). Executing group {i} immediately.")
             start_idx = i * group_size
             end_idx = min((i + 1) * group_size, total_count)
             group_ids = all_user_ids[start_idx:end_idx]
@@ -139,46 +141,46 @@ async def process_group_users(user_ids: List[str], group_index: int):
     """
     处理一组用户，组内每个用户请求间隔 1 分钟。
     """
-    print(f"Starting Group {group_index} processing ({len(user_ids)} users).")
+    logger.info(f"Starting Group {group_index} processing ({len(user_ids)} users).")
 
     try:
         bot = get_telegram_bot()
     except Exception as e:
-        print(f"Group {group_index}: Failed to init Telegram Bot: {e}")
+        logger.error(f"Group {group_index}: Failed to init Telegram Bot: {e}")
         return
 
     try:
         strategy = get_strategy()
     except Exception as e:
-        print(f"Group {group_index}: Failed to init Strategy: {e}")
+        logger.error(f"Group {group_index}: Failed to init Strategy: {e}")
         return
 
     for idx, user_id in enumerate(user_ids):
-        print(f"Group {group_index} - Processing {idx + 1}/{len(user_ids)}: {user_id}")
+        logger.info(f"Group {group_index} - Processing {idx + 1}/{len(user_ids)}: {user_id}")
 
         try:
             follower = await follower_model.get_follower_snapshot(user_id)
 
             if follower and follower.category != "disable":
                 if follower.latest_send_datetime and datetime.now() - follower.latest_send_datetime < timedelta(hours=1):
-                    print(f"User {user_id} skipped (less than 1 hour since last check/send).")
+                    logger.info(f"User {user_id} skipped (less than 1 hour since last check/send).")
                     continue
                 await process_follower(follower, bot, strategy)
             else:
-                print(f"User {user_id} skipped (not found or disabled).")
+                logger.info(f"User {user_id} skipped (not found or disabled).")
         except Exception as e:
-            print(f"Error processing user {user_id} in group {group_index}: {e}")
+            logger.error(f"Error processing user {user_id} in group {group_index}: {e}")
             await send_error_notification(bot, f"Group {group_index} Error User {user_id}: {e}")
 
         if idx < len(user_ids) - 1:
-            print(f"Group {group_index}: Waiting 60s before next user...")
+            logger.debug(f"Group {group_index}: Waiting 60s before next user...")
             await asyncio.sleep(60)
 
-    print(f"Group {group_index} processing finished.")
+    logger.info(f"Group {group_index} processing finished.")
 
 
 async def process_follower(follower: FollowerTable, bot: Bot, strategy: RssStrategy):
-    print(f"Checking updates for user: {follower.user_id}")
+    logger.info(f"Checking updates for user: {follower.user_id}")
 
     contents = []
     retry_count = 3
@@ -188,10 +190,10 @@ async def process_follower(follower: FollowerTable, bot: Bot, strategy: RssStrat
             break
         except Exception as e:
             if attempt < retry_count - 1:
-                print(f"Fetch failed for {follower.user_id}, retrying ({attempt + 1}/{retry_count})... Error: {e}")
+                logger.warning(f"Fetch failed for {follower.user_id}, retrying ({attempt + 1}/{retry_count})... Error: {e}")
                 await asyncio.sleep(5)
             else:
-                print(f"Fetch failed for {follower.user_id} after {retry_count} attempts: {e}")
+                logger.error(f"Fetch failed for {follower.user_id} after {retry_count} attempts: {e}")
                 await send_error_notification(bot, f"Fetch failed for {follower.user_id}: {e}")
                 return
 
@@ -215,7 +217,7 @@ async def process_follower(follower: FollowerTable, bot: Bot, strategy: RssStrat
 
     new_posts: List[Tuple[TwitterContent, datetime]] = []
     if last_date is None:
-        print(f"First run for {follower.user_id}, sending latest post as test.")
+        logger.info(f"First run for {follower.user_id}, sending latest post as test.")
         new_posts.append(valid_contents[-1])
     else:
         for content, dt in valid_contents:
@@ -247,10 +249,10 @@ async def process_follower(follower: FollowerTable, bot: Bot, strategy: RssStrat
                 str(target_chat_id),
             )
 
-            print(f"Successfully sent and saved update for {follower.user_id} - {content.link}")
+            logger.info(f"Successfully sent and saved update for {follower.user_id} - {content.link}")
 
         except Exception as e:
-            print(f"Failed to send notification for {follower.user_id}: {e}")
+            logger.error(f"Failed to send notification for {follower.user_id}: {e}")
             await send_error_notification(bot, f"发送通知失败 [{follower.user_id}]\n{content.link}\n错误: {e}")
             # 一旦失败，停止更新该用户状态，等待下次轮询重试
             break

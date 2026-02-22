@@ -4,6 +4,9 @@ from telegram import Bot
 from telegram.ext import Application
 
 from utils.config_manager import ConfigError, get_config
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 _application_instance: Application | None = None
 _target_chat_id: str | int | None = None
@@ -61,4 +64,4 @@ async def send_error_notification(bot: Bot, message: str):
                 parse_mode="HTML",
             )
     except Exception as e:
-        print(f"Failed to send error notification: {e}")
+        logger.error(f"Failed to send error notification: {e}")

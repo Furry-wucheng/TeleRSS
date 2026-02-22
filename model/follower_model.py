@@ -56,7 +56,7 @@ async def get_active_user_ids() -> List[str]:
     """获取所有活跃用户 ID 列表（category != 'disable'）"""
     async with get_async_session() as session:
         result = await session.execute(
-            select(FollowerTable.user_id).where(FollowerTable.category != "disable")
+            select(FollowerTable.user_id).where(FollowerTable.category != "disable")  # type: ignore[arg-type]
         )
         return result.scalars().all()
 
@@ -70,10 +70,10 @@ async def get_follower_snapshot(user_id: str) -> Optional[FollowerTable]:
 
 
 async def save_post_result(
-    user_id: str,
-    content: TwitterContent,
-    dt: datetime,
-    target_chat_id: str,
+        user_id: str,
+        content: TwitterContent,
+        dt: datetime,
+        target_chat_id: str,
 ):
     """
     将成功发送的帖子写入 SendHistory，并更新 FollowerTable 状态。
@@ -82,7 +82,7 @@ async def save_post_result(
         media_snapshot_str = json.dumps(content.media_list) if content.media_list else None
         history = SendHistory(
             author=content.author,
-            content=content.content[:200] if content.content else "",
+            content=content.content[:200] if content.content else "",  # type: ignore[index]
             link=content.link,
             media_snapshot=media_snapshot_str,
             chat_id=str(target_chat_id),
@@ -97,4 +97,3 @@ async def save_post_result(
             follower.latest_post_link = content.link
             follower.latest_send_datetime = datetime.now()
             session.add(follower)
-        # asynccontextmanager 结束时自动 commit

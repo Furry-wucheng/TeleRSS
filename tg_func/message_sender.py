@@ -2,9 +2,12 @@ import asyncio
 import html
 
 from strategy.strategy_factory import get_strategy
+from utils.logger import get_logger
 from utils.telegram_client import get_telegram_bot, get_target_chat_id
 from telegram import Bot, InputMediaPhoto, InputMediaVideo
 from strategy.context import TwitterContent
+
+logger = get_logger(__name__)
 
 async def send_twitter_content(bot: Bot, content: TwitterContent, target_chat_id: str, category: str = "Uncategorized", post_time: str = ""):
     """
@@ -78,7 +81,7 @@ async def send_twitter_content(bot: Bot, content: TwitterContent, target_chat_id
                 await bot.send_media_group(chat_id=target_chat_id, media=chunk)
 
     except Exception as e:
-        print(f"Failed to send media: {e}")
+        logger.error(f"Failed to send media: {e}")
         # 如果发送媒体失败（例如格式不支持），尝试降级为只发送文本链接
         await bot.send_message(chat_id=target_chat_id, text=f"{msg}\n\n(媒体发送失败: {e})", parse_mode="HTML")
 
