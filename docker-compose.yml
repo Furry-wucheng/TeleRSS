@@ -20,4 +20,8 @@ services:
       # - AUTONOTICE__RSS__RSS_BASE_URL=http://your-rss-server:1200
       # Example override for Telegram Token
       # - AUTONOTICE__TELEGRAM__BOT_TOKEN=your_token_here
+      # Example override for Telegram Target Chat ID
+      # - AUTONOTICE__TELEGRAM__TARGET_CHAT_ID=your_chat_id_here
+      # Admin Chat ID: only this user can execute bot commands
+      # - AUTONOTICE__TELEGRAM__ADMIN_CHAT_ID=your_admin_chat_id_here
 

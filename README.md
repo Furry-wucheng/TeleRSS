@@ -25,6 +25,8 @@ AutoNotice 是一个自动化的通知服务，旨在通过 RSS 的方式监控�
 
 > **提示**: 将用户分类设为 `disable` 即可暂停该用户的推送，而不必从数据库删除。
 
+> 🔒 **权限控制**: 所有 Bot 命令均受 `admin_chat_id` 保护，只有配置的管理员 Chat ID 才能执行。其他用户发送命令会收到 `⛔ 权限不足` 提示。
+
 ## 🚀 快速开始
 
 ### 1. 准备工作
@@ -123,6 +125,7 @@ uv run main.py
 | **RSS URL** | `AUTONOTICE__RSS__RSS_BASE_URL` | RSSHub 或其他 RSS 源的基础地址 |
 | **Bot Token** | `AUTONOTICE__TELEGRAM__BOT_TOKEN` | Telegram Bot API Token |
 | **Chat ID** | `AUTONOTICE__TELEGRAM__TARGET_CHAT_ID` | 接收通知的 Chat ID |
+| **管理员 Chat ID** | `AUTONOTICE__TELEGRAM__ADMIN_CHAT_ID` | 允许执行 Bot 命令的用户 Chat ID，留空则不限制 |
 | **分组数量** | `AUTONOTICE__BASE__NUM_GROUPS` | 用户分批数量，默认 `6` |
 | **每日刷新时** | `AUTONOTICE__BASE__DAILY_REFRESH_HOUR` | 每日重新分配任务的小时，默认 `23` |
 | **每日刷新分** | `AUTONOTICE__BASE__DAILY_REFRESH_MINUTE` | 每日重新分配任务的分钟，默认 `50` |

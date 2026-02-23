@@ -1,11 +1,35 @@
+from functools import wraps
 from telegram import Update, BotCommand
 from telegram.ext import Application, CommandHandler, ContextTypes
 import model.follower_model as follower_model
+from utils.config_manager import get_config
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
+def admin_only(func):
+    """装饰器：限制命令只能由配置的 admin_chat_id 使用。未配置时拒绝所有命令。"""
+    admin_chat_id = get_config("telegram", "admin_chat_id")
+    admin_id = str(admin_chat_id).strip() if admin_chat_id else None
+
+
+    @wraps(func)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        sender_id = str(update.effective_user.id)
+        if admin_id is None:
+            logger.warning(f"命令 /{func.__name__} 被拒绝: admin_chat_id 未配置，拒绝 user_id={sender_id}")
+            await update.message.reply_text("⛔ 该功能未启用，请联系管理员配置 admin_chat_id。")
+            return
+        if sender_id != admin_id:
+            logger.warning(f"未授权访问: user_id={sender_id} 尝试执行 /{func.__name__}")
+            await update.message.reply_text("⛔ 权限不足，您无权执行此命令。")
+            return
+        return await func(update, context)
+    return wrapper
+
+
+@admin_only
 async def add_new_userid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Adds a new user ID to the database.
@@ -29,6 +53,7 @@ async def add_new_userid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("错误！请检查输入参数")
 
 
+@admin_only
 async def remove_userid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Removes a user ID from the database.
@@ -44,6 +69,7 @@ async def remove_userid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await follower_model.delete_follower(user_id)
 
 
+@admin_only
 async def update_userid_cate(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Updates the category of a user ID.
@@ -60,6 +86,7 @@ async def update_userid_cate(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await follower_model.update_follower(user_id, category)
 
 
+@admin_only
 async def get_category_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Gets the list of categories.
@@ -68,6 +95,7 @@ async def get_category_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"当前分类列表为：{cate_list}")
 
 
+@admin_only
 async def get_disable_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Gets the list of disabled IDs.
@@ -88,6 +116,12 @@ BOT_COMMANDS = [
 
 
 def register_handlers(application: Application):
+    admin_chat_id = get_config("telegram", "admin_chat_id")
+    if not admin_chat_id or not str(admin_chat_id).strip():
+        logger.warning("⚠️  admin_chat_id 未配置！所有 Bot 命令将对任何用户拒绝执行，请在配置文件或环境变量中设置 admin_chat_id。")
+    else:
+        logger.info(f"✅ Bot 命令权限已启用，管理员 Chat ID: {str(admin_chat_id).strip()}")
+
     for cmd, callback in BOT_COMMANDS:
         application.add_handler(CommandHandler(cmd.command, callback))
 
