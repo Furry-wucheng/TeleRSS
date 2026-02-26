@@ -23,19 +23,27 @@ class RssStrategy:
         self.base_url = get_config("rss", "rss_base_url", required=True)
         self.client = RssClient(self.base_url)
 
-    async def get_new_media(self, user_id: str) -> List[TwitterContent]:
+    async def get_new_media(self, user_id: str, retry_count: int = 3, retry_interval: float = 5) -> List[TwitterContent]:
         """
-        通过RSS获取用户新媒体内容
+        通过RSS获取用户新媒体内容，失败时自动重试
         :param user_id: 用户ID
+        :param retry_count: 最大重试次数
+        :param retry_interval: 每次重试间隔（秒）
         :return: TwitterContent列表
         """
-        try:
-            # 获取原始RSS数据
-            raw_data = await self.client.get_x_rss_by_user_media(user_id)
-        except Exception as e:
-            # 这里捕获RSS客户端的错误，并向上抛出，或者在这里进行特定的日志记录
-            # 为了让上层能够感知到是RSS错误，我们可以抛出一个自定义异常或者保留原异常
-            raise RuntimeError(f"RSS fetch failed for user {user_id}: {str(e)}") from e
+        for attempt in range(retry_count):
+            try:
+                # 获取原始RSS数据
+                raw_data = await self.client.get_x_rss_by_user_media(user_id)
+                break
+            except Exception as e:
+                if attempt < retry_count - 1:
+                    logger.warning(f"RSS fetch failed for {user_id}, retrying ({attempt + 1}/{retry_count})... Error: {e}")
+                    await asyncio.sleep(retry_interval)
+                else:
+                    raise RuntimeError(f"RSS fetch failed for user {user_id} after {retry_count} attempts: {str(e)}") from e
+        else:
+            raw_data = []
 
         result: List[TwitterContent] = []
 
@@ -65,8 +73,8 @@ class RssStrategy:
 async def test():
     try:
         strategy = RssStrategy()
-        result = await strategy.get_new_media("Panda_inn1")
-        logger.debug(result[:3])
+        result = await strategy.get_new_media("qigiu")
+        logger.info(result[:3])
     except Exception as e:
         logger.error(f"Test failed: {e}")
 

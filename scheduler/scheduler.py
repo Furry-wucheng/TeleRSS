@@ -191,20 +191,12 @@ async def process_group_users(user_ids: List[str], group_index: int):
 async def process_follower(follower: FollowerTable, bot: Bot, strategy: RssStrategy):
     logger.info(f"Checking updates for user: {follower.user_id}")
 
-    contents = []
-    retry_count = 3
-    for attempt in range(retry_count):
-        try:
-            contents = await strategy.get_new_media(follower.user_id)
-            break
-        except Exception as e:
-            if attempt < retry_count - 1:
-                logger.warning(f"Fetch failed for {follower.user_id}, retrying ({attempt + 1}/{retry_count})... Error: {e}")
-                await asyncio.sleep(5)
-            else:
-                logger.error(f"Fetch failed for {follower.user_id} after {retry_count} attempts: {e}")
-                await send_error_notification(bot, f"Fetch failed for {follower.user_id}: {e}")
-                return
+    try:
+        contents = await strategy.get_new_media(follower.user_id)
+    except Exception as e:
+        logger.error(f"Fetch failed for {follower.user_id}: {e}")
+        await send_error_notification(bot, f"Fetch failed for {follower.user_id}: {e}")
+        return
 
     if not contents:
         return
